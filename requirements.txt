@@ -10,7 +10,6 @@ mkdocs-git-revision-date-localized-plugin==1.1.0
 mdx-linkify==1.0
 mdx-environment==0.2.0
 yasha==4.1
-pymdown-extensions==8.0.1
 mkdocs-windmill==1.0.0
 #mkdocs-rtd-dropdown==1.0.2
 
