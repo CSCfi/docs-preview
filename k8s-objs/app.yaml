@@ -219,7 +219,7 @@ items:
           emptyDir: {}
         - name: nginx-conf
           configMap:
-            name: nginx-config
+            name: nginx-config-devel
         containers:
         - image: bitnami/nginx:1.16-centos-7
           name: web-server
@@ -373,6 +373,22 @@ items:
           autoindex on;
         }
       }
+- kind: ConfigMap
+  apiVersion: v1
+  metadata:
+    name: nginx-config-devel
+    app: docs-preview-devel
+  data:
+    my_server_block.conf: |
+      server {
+        listen 8080;
+        location / {
+          root /app;
+          index index.html;
+          autoindex on;
+        }
+      }
+
 
 kind: List
 metadata: {}
