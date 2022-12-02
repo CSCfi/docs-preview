@@ -367,10 +367,21 @@ items:
     my_server_block.conf: |
       server {
         listen 8080;
+        root /app/origin/;
+        index index.html;
+        rewrite ^/origin/*(.*)$ /$1  last;
+        absolute_redirect off;
+
         location / {
-          root /app;
-          index index.html;
           autoindex on;
+        }
+
+        location /origin/ {
+          autoindex on;
+        }
+
+        location ~* /([^/]*)/ {
+          error_page 404 /$1/404.html;
         }
       }
 

@@ -8,6 +8,7 @@ from flask import Flask
 defaultWorkPath = "work"
 defaultBuildRoot = "/tmp/preview-bot/builds"
 defaultRemoteUrl = "https://github.com/CSCfi/csc-user-guide"
+defaultSiteURL = "https://docs.csc.fi/"
 defaultSecret = "changeme" # we are using secret but we should be utilizing whitelists
 defaultPort = 8081
 
@@ -20,6 +21,11 @@ try:
   buildRoot = os.environ["BUILDROOT"]
 except KeyError:
   buildRoot = defaultBuildRoot
+
+try:
+  siteURL = os.environ["SITEURL"]
+except KeyError:
+  siteURL = defaultSiteURL
 
 try:
   buildSecret = os.environ["BUILDSECRET"]
@@ -99,7 +105,20 @@ def buildRef(repo, ref, state):
         cmdout = os.popen(cmd)
         print(cmdout.read())
 
-    cmd = "sh -c 'cd %s && mkdocs build --site-dir %s 2>&1'" % (config["workPath"], buildpath)
+    #
+    # WORKAROUND
+    with open('%s/mkdocs.yml' % config["workPath"], 'r') as file :
+      filedata = file.read()
+
+    # Replace the target string
+    filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, str(ref)))
+
+    # Write the file out again
+    with open('%s/mkdocs.yml2' % config["workPath"], 'w') as file:
+      file.write(filedata)
+    #
+
+    cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (config["workPath"], buildpath)
     print("Executing: %s" % (cmd))
     cmdout = os.popen(cmd)
     print(cmdout.read())
