@@ -8,7 +8,7 @@ from flask import Flask
 defaultWorkPath = "work"
 defaultBuildRoot = "/tmp/preview-bot/builds"
 defaultRemoteUrl = "https://github.com/CSCfi/csc-user-guide"
-defaultSiteURL = "https://docs.csc.fi/"
+defaultSiteURL = "https://csc-guide-preview.rahtiapp.fi/"
 defaultSecret = "changeme" # we are using secret but we should be utilizing whitelists
 defaultPort = 8081
 
