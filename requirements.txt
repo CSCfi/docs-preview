@@ -1,5 +1,5 @@
 flask==2.1.2
-GitPython==3.1.27
+GitPython==3.1.30
 
 ## This is for building the static pages
 # This is what we actually install
