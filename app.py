@@ -38,13 +38,13 @@ try:
 except KeyError:
   configFile = None
 
-# Default configuration 
+# Default configuration
 
 config = {
-    "workPath": workPath, 
+    "workPath": workPath,
     "remoteUrl": "https://github.com/CSCfi/csc-user-guide",
     "buildRoot": buildRoot,
-    "debug": "False", 
+    "debug": "False",
     "secret": buildSecret,
     "prune": "True"
     }
@@ -63,7 +63,7 @@ def initRepo(workPath, remote_url):
 
   repo = git.Repo.init(workPath)
 
-  try: 
+  try:
     origin = repo.remote('origin')
   except ValueError:
     print("creating origin")
@@ -71,7 +71,7 @@ def initRepo(workPath, remote_url):
 
   assert origin.exists()
   assert origin == repo.remotes.origin == repo.remotes['origin']
-  
+
 
   for fetch_info in origin.fetch(None, None, prune=True):
     print("Updated %s in %s" % (fetch_info.ref, fetch_info.commit))
@@ -219,6 +219,6 @@ if __name__=="__main__":
     exit(1)
 
   listenBuild(config["secret"])
-  app.run(debug=config["debug"]=="True", 
-      port=defaultPort, 
+  app.run(debug=config["debug"]=="True",
+      port=defaultPort,
       host='0.0.0.0')
