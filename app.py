@@ -81,11 +81,15 @@ def initRepo(workPath, remote_url):
 def mkdirp(path):
   os.makedirs(path, exist_ok=True)
 
-def buildRef(repo, ref, state):
+def buildRef(ref, state):
   """
   Builds and updates.
   """
   global config
+
+  workPath="%s/%s" % (config["workPath"], str(ref).split('/')[1])
+
+  repo, origin = initRepo(workPath, config["remoteUrl"])
 
   print(str(ref.commit), state["built"])
   buildpath = os.path.join(config["buildRoot"], str(ref))
@@ -100,25 +104,25 @@ def buildRef(repo, ref, state):
     scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh"]
 
     for script in scripts:
-        cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (config["workPath"],script)
+        cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (workPath,script)
         print("Executing: %s" % (cmd))
         cmdout = os.popen(cmd)
         print(cmdout.read())
 
     #
     # WORKAROUND
-    with open('%s/mkdocs.yml' % config["workPath"], 'r') as file :
+    with open('%s/mkdocs.yml' % workPath, 'r') as file :
       filedata = file.read()
 
     # Replace the target string
     filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, str(ref)))
 
     # Write the file out again
-    with open('%s/mkdocs.yml2' % config["workPath"], 'w') as file:
+    with open('%s/mkdocs.yml2' % workPath, 'w') as file:
       file.write(filedata)
     #
 
-    cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (config["workPath"], buildpath)
+    cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (workPath, buildpath)
     print("Executing: %s" % (cmd))
     cmdout = os.popen(cmd)
     print(cmdout.read())
@@ -141,13 +145,13 @@ def cleanUpZombies():
       except ChildProcessError:
         break
 
-def pruneBuilds(repo, origin):
+def pruneBuilds():
   repo, origin = initRepo(config["workPath"], config["remoteUrl"])
   try:
     builtrefs = os.listdir(config["buildRoot"]+'/origin')
   except FileNotFoundError:
     print("Clean buildRoot")
-    return
+    return repo, origin
 
   srefs = [str(x) for x in origin.refs]
   builtrefs = ['origin/'+str(x) for x in builtrefs]
@@ -163,6 +167,8 @@ def pruneBuilds(repo, origin):
 
   print("Done pruning old builds.")
 
+  return repo, origin
+
 ### Route functions ###
 
 app = Flask(__name__)
@@ -175,26 +181,38 @@ def listenBuild(secret):
   if not secret == config["secret"]:
     return "Access denied"
 
-  repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+  #repo, origin = initRepo(config["workPath"], config["remoteUrl"])
 
   output = ""
 
-  # Clean buildState 
-  for ref in origin.refs:
-    sref = str(ref)
-    output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
-    
-    if not sref in buildState:
-      print(sref + " not found in " + str(buildState))
-      buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+  # Clean buildState
+  #for ref in origin.refs:
+  #  sref = str(ref)
+  #  output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
+  #
+  #  if not sref in buildState:
+  #    print(sref + " not found in " + str(buildState))
+  #    buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
 
   # Prune nonexisting builds
   if "prune" in config and config["prune"]:
-    pruneBuilds(repo, origin)
+    repo, origin = pruneBuilds()
   # Refresh builds
-  for ref in origin.refs:
-    buildRef(repo, ref, buildState[str(ref)])
 
+  import threading
+  threads = list()
+  for ref in origin.refs:
+    bState = {"sha": str(ref.commit), "status": "init", "built": None}
+    x = threading.Thread(target=buildRef, args=(ref, bState,))
+    threads.append(x)
+    x.start()
+
+  for index, thread in enumerate(threads):
+    thread.join()
+
+  print("DONE")
+
+  bState = {"sha": str(ref.commit), "status": "init", "built": None}
   cleanUpZombies()
 
   return "listenBuilt:<br>" + output
