@@ -97,7 +97,7 @@ def buildRef(repo, ref, state):
     print("buildpath = %s" % (buildpath))
     mkdirp(buildpath)
 
-    scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh"]
+    scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
 
     for script in scripts:
         cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (config["workPath"],script)
