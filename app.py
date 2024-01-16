@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-import git, os, mkdocs, subprocess, shutil, json
+import git, os, shutil, json
 
-from flask import Flask
+from flask import Flask, Response
 
 # defaults
 
@@ -63,7 +63,7 @@ def initRepo(workPath, remote_url):
 
   repo = git.Repo.init(workPath)
 
-  try: 
+  try:
     origin = repo.remote('origin')
   except ValueError:
     print("creating origin")
@@ -71,7 +71,7 @@ def initRepo(workPath, remote_url):
 
   assert origin.exists()
   assert origin == repo.remotes.origin == repo.remotes['origin']
-  
+
 
   for fetch_info in origin.fetch(None, None, prune=True):
     print("Updated %s in %s" % (fetch_info.ref, fetch_info.commit))
@@ -175,29 +175,34 @@ def listenBuild(secret):
   if not secret == config["secret"]:
     return "Access denied"
 
-  repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+  response = Response('built started')
 
-  output = ""
+  @response.call_on_close
+  def build():
 
-  # Clean buildState 
-  for ref in origin.refs:
-    sref = str(ref)
-    output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
-    
-    if not sref in buildState:
-      print(sref + " not found in " + str(buildState))
-      buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+      repo, origin = initRepo(config["workPath"], config["remoteUrl"])
 
-  # Prune nonexisting builds
-  if "prune" in config and config["prune"]:
-    pruneBuilds(repo, origin)
-  # Refresh builds
-  for ref in origin.refs:
-    buildRef(repo, ref, buildState[str(ref)])
+      output = ""
 
-  cleanUpZombies()
+      # Clean buildState
+      for ref in origin.refs:
+        sref = str(ref)
+        output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
 
-  return "listenBuilt:<br>" + output
+        if not sref in buildState:
+          print(sref + " not found in " + str(buildState))
+          buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+
+      # Prune nonexisting builds
+      if "prune" in config and config["prune"]:
+        pruneBuilds(repo, origin)
+      # Refresh builds
+      for ref in origin.refs:
+        buildRef(repo, ref, buildState[str(ref)])
+
+      cleanUpZombies()
+
+  return response
 
 ### Entry functions
 
@@ -219,6 +224,6 @@ if __name__=="__main__":
     exit(1)
 
   listenBuild(config["secret"])
-  app.run(debug=config["debug"]=="True", 
-      port=defaultPort, 
+  app.run(debug=config["debug"]=="True",
+      port=defaultPort,
       host='0.0.0.0')
