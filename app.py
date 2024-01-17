@@ -177,32 +177,35 @@ def listenBuild(secret):
 
   response = Response('built started')
 
-  @response.call_on_close
-  def build():
-
-      repo, origin = initRepo(config["workPath"], config["remoteUrl"])
-
-      output = ""
-
-      # Clean buildState
-      for ref in origin.refs:
-        sref = str(ref)
-        output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
-
-        if not sref in buildState:
-          print(sref + " not found in " + str(buildState))
-          buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
-
-      # Prune nonexisting builds
-      if "prune" in config and config["prune"]:
-        pruneBuilds(repo, origin)
-      # Refresh builds
-      for ref in origin.refs:
-        buildRef(repo, ref, buildState[str(ref)])
-
-      cleanUpZombies()
+  response.call_on_close(build)
 
   return response
+
+def build():
+
+  print("Start build")
+
+  repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+
+  output = ""
+
+  # Clean buildState
+  for ref in origin.refs:
+    sref = str(ref)
+    output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
+
+    if not sref in buildState:
+      print(sref + " not found in " + str(buildState))
+      buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+
+  # Prune nonexisting builds
+  if "prune" in config and config["prune"]:
+    pruneBuilds(repo, origin)
+  # Refresh builds
+  for ref in origin.refs:
+    buildRef(repo, ref, buildState[str(ref)])
+
+  cleanUpZombies()
 
 ### Entry functions
 
@@ -224,6 +227,9 @@ if __name__=="__main__":
     exit(1)
 
   listenBuild(config["secret"])
+  build()
+
   app.run(debug=config["debug"]=="True",
       port=defaultPort,
       host='0.0.0.0')
+
