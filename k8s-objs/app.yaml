@@ -376,6 +376,8 @@ items:
           autoindex on;
         }
 
+        rewrite ^/(.*[^/])$ /$1/ permanent;
+
         location /origin/ {
           autoindex on;
         }
