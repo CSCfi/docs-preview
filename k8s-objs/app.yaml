@@ -376,7 +376,7 @@ items:
           autoindex on;
         }
 
-        rewrite ^/(.*[^/])$ /$1/ permanent;
+        port_in_redirect off;
 
         location /origin/ {
           autoindex on;
