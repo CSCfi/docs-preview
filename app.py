@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import git, os, shutil, json, threading
+import git, os, shutil, json
 
 from flask import Flask, Response
 
@@ -177,15 +177,13 @@ def listenBuild(secret):
 
   response = Response('built started')
 
-  thread = threading.Thread(target=build)
-  thread.start()
+  response.call_on_close(build)
 
   return response
 
 def build():
 
   print("Start build")
-
 
   repo, origin = initRepo(config["workPath"], config["remoteUrl"])
 
@@ -229,6 +227,7 @@ if __name__=="__main__":
     exit(1)
 
   listenBuild(config["secret"])
+  build()
 
   app.run(debug=config["debug"]=="True",
       port=defaultPort,
