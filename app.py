@@ -7,7 +7,7 @@ from flask import Flask, Response
 
 defaultWorkPath = "work"
 defaultBuildRoot = "/tmp/preview-bot/builds"
-defaultRemoteUrl = "https://github.com/CSCfi/csc-user-guide"
+defaultRemoteUrl = "https://github.com/Lumi-supercomputer/lumi-userguide.git"
 defaultSiteURL = "https://csc-guide-preview.rahtiapp.fi/"
 defaultSecret = "changeme" # we are using secret but we should be utilizing whitelists
 defaultPort = 8081
@@ -42,7 +42,7 @@ except KeyError:
 
 config = {
     "workPath": workPath, 
-    "remoteUrl": "https://github.com/CSCfi/csc-user-guide",
+    "remoteUrl": "https://github.com/Lumi-supercomputer/lumi-userguide.git",
     "buildRoot": buildRoot,
     "debug": "False", 
     "secret": buildSecret,
