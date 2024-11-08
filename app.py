@@ -32,6 +32,11 @@ try:
 except KeyError:
   buildSecret = defaultSecret
 
+try:
+  remoteUrl = os.environ["REMOTEURL"]
+except KeyError:
+  remoteUrl = "https://github.com/CSCfi/csc-user-guide"
+
 # Configurations in CONFIGFILE will override other environment variables
 try:
   configFile = os.environ["CONFIGFILE"]
@@ -42,7 +47,7 @@ except KeyError:
 
 config = {
     "workPath": workPath, 
-    "remoteUrl": "https://github.com/Lumi-supercomputer/lumi-userguide.git",
+    "remoteUrl": remoteUrl,
     "buildRoot": buildRoot,
     "debug": "False", 
     "secret": buildSecret,

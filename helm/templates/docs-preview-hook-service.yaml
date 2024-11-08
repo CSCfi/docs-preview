@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: docs-preview-hook
+spec:
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    deployment: docs-preview
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
