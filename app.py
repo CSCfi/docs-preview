@@ -175,8 +175,6 @@ def listenBuild(secret):
   if not secret == config["secret"]:
     return "Access denied"
 
-  build()
-
   response = Response('built started')
 
   response.call_on_close(build)
