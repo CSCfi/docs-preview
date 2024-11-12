@@ -376,6 +376,8 @@ items:
           autoindex on;
         }
 
+        port_in_redirect off;
+
         location /origin/ {
           autoindex on;
         }

@@ -175,6 +175,8 @@ def listenBuild(secret):
   if not secret == config["secret"]:
     return "Access denied"
 
+  build()
+
   response = Response('built started')
 
   thread = threading.Thread(target=build)
