@@ -225,9 +225,11 @@ def write_state(state):
         json.dump(state, file)
 
 def read_state():
-    with open(STATEFILE, 'r') as file:
-        return json.load(file)
-
+    try:
+        with open(STATEFILE, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
 ### Entry functions
 
 if __name__=="__main__":
