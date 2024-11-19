@@ -187,7 +187,7 @@ def buildCommit(commit, branch):
 
   #write_state(buildState)
 
-  rmdir(tmpFolder)
+  rmtree(tmpFolder)
 
 def cleanUpZombies():
     """
