@@ -270,7 +270,7 @@ def listenBuild(secret):
   thread = threading.Thread(target=build)
   thread.start()
 
-  return Response('{{\"built\":\"started\"}}')
+  return Response('{\"built\":\"started\"}')
 
 
 def build():
