@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import git, os, shutil, json, threading
+import git, os, json, threading
 
+from shutil import copytree, rmtree
+from random import randint
+from flask import Flask, Response, request
 import logging
-
-from flask import Flask, Response
 
 # defaults
 
@@ -143,6 +144,66 @@ def buildRef(repo, ref, state):
 
     state["built"] = str(ref.commit)
 
+def buildCommit(commit, branch):
+
+  buildpath = os.path.join(config["buildRoot"], branch)
+
+  tmpFolder = '/tmp/%s-%s' % (commit, randint(0,9999))
+
+  try:
+    rmtree(tmpFolder)
+  except Exception:
+      pass
+
+  copytree(config["workPath"], tmpFolder)
+
+  repo = git.Repo.init(tmpFolder)
+
+  repo.git.reset('--hard', commit)
+  repo.git.checkout(commit)
+
+  mkdirp(buildpath)
+
+  scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
+
+  for script in scripts:
+      cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (tmpFolder, script)
+      print("Executing: %s" % (cmd))
+      cmdout = os.popen(cmd)
+      print(cmdout.read())
+
+  #
+  # WORKAROUND
+  with open('%s/mkdocs.yml' % tmpFolder, 'r') as file :
+      filedata = file.read()
+
+  # Replace the target string
+  filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, branch))
+
+  # Write the file out again
+  with open('%s/mkdocs.yml2' % tmpFolder, 'w') as file:
+    file.write(filedata)
+    #
+
+  cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (tmpFolder, buildpath)
+  print("Executing: %s" % (cmd))
+  cmdout = os.popen(cmd)
+  print(cmdout.read())
+
+  app.logger.info("Built branch {branch} in commit {commit}")
+
+  #buildState = read_state()
+
+  try:
+      buildState[str(branch)]["built"] = str(commit)
+  except KeyError:
+      buildState[str(branch)] = {"sha": str(commit), "status": "init", "built": str(commit)}
+      #write_state(buildState)
+
+  #write_state(buildState)
+
+  rmtree(tmpFolder)
+
 def cleanUpZombies():
     """
     We want to clean all Zombies:
@@ -173,11 +234,22 @@ def pruneBuilds(repo, origin):
 
   for bref in builtrefs:
     if not bref in srefs:
+      print('found stale preview: ' + bref)
       remove_build = config["buildRoot"] + '/' + bref
-      prinf(f"  [{bref}] Removing {remove_build}")
-      shutil.rmtree(remove_build)
+      print('Removing ' + remove_build)
+      rmtree(remove_build)
 
   app.logger.debug("DONE pruning old builds.")
+
+def getBranch(commit):
+    repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+
+    # Get the branch name
+    for ref in repo.refs:
+      if str(ref.commit.hexsha) == str(commit):
+        return ref.name
+
+    return None
 
 ### Route functions ###
 
@@ -190,13 +262,30 @@ def listenBuild(secret):
 
   if not secret == config["secret"]:
     return "Access denied"
+  
+  if request.headers.get('Content-Type') == 'application/json':
 
-  response = Response("Build started")
+    commit = request.json['after']
+    branch = getBranch(commit)
+    if branch is None:
+        commit = request.json['after']
+        branch = getBranch(commit)
+
+    if branch == None:
+        return Response(f"Branch not found for commit {commit}")
+
+    print(branch)
+
+    thread = threading.Thread(target=buildCommit, args=[commit, branch])
+    thread.start()
+
+    return Response(f"{{\"commit\":\"{commit}\",\"branch\":\"{branch}\"}}" )
 
   thread = threading.Thread(target=build)
   thread.start()
 
-  return response
+  return Response('{\"built\":\"started\"}')
+
 
 def build():
 
@@ -258,7 +347,8 @@ if __name__=="__main__":
     app.logger.error("Don't use default secret since it's freely available in the internet")
     exit(1)
 
-  listenBuild(config["secret"])
+  thread = threading.Thread(target=build)
+  thread.start()
 
   app.run(debug=config["debug"]=="True",
       port=defaultPort,
