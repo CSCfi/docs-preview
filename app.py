@@ -5,12 +5,18 @@ from flask import Flask, Response
 
 # defaults
 
+defaultStateFile='/tmp/build_state.json'
 defaultWorkPath = "work"
 defaultBuildRoot = "/tmp/preview-bot/builds"
 defaultRemoteUrl = "https://github.com/CSCfi/csc-user-guide"
 defaultSiteURL = "https://csc-guide-preview.rahtiapp.fi/"
 defaultSecret = "changeme" # we are using secret but we should be utilizing whitelists
 defaultPort = 8081
+
+try:
+    STATEFILE = os.environ["STATEFILE"]
+except KeyError:
+    STATEFILE = '/tmp/build_state.json'
 
 try:
   workPath = os.environ["WORKPATH"]
@@ -95,6 +101,7 @@ def buildRef(repo, ref, state):
   print(str(ref.commit), state["built"])
   buildpath = os.path.join(config["buildRoot"], str(ref))
 
+  print('Checking: %s == %s' % (str(ref.commit), state["built"]))
   if not str(ref.commit) == state["built"] or not os.path.isdir(buildpath):
     print("re-building %s in %s" % (ref, ref.commit))
     repo.git.reset('--hard',ref)
@@ -193,6 +200,7 @@ def build():
 
   print("Start build")
 
+  buildState = read_state()
 
   repo, origin = initRepo(config["workPath"], config["remoteUrl"])
 
@@ -213,9 +221,20 @@ def build():
   # Refresh builds
   for ref in origin.refs:
     buildRef(repo, ref, buildState[str(ref)])
+    write_state(buildState)
 
   cleanUpZombies()
 
+def write_state(state):
+    with open(STATEFILE, 'w') as file:
+        json.dump(state, file)
+
+def read_state():
+    try:
+        with open(STATEFILE, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
 ### Entry functions
 
 if __name__=="__main__":
