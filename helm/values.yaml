@@ -1,0 +1,8 @@
+git:
+  source: https://github.com/cscfi/docs-preview
+  docs: https://github.com/cscfi/csc-user-guide
+secret:
+
+host: csc-guide-preview.rahtiapp.fi
+
+replicas: 1
