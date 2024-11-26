@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"docs-preview:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"docs-preview\")].image"}]'
+  labels:
+    app: docs-preview
+  name: docs-preview
+spec:
+  progressDeadlineSeconds: 600
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      deployment: docs-preview
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        deployment: docs-preview
+    spec:
+      containers:
+      - image: bitnami/nginx:1.16-centos-7
+        imagePullPolicy: IfNotPresent
+        name: web-server
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1G
+          requests:
+            cpu: 200m
+            memory: 200M
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /app
+          name: content-vol
+        - mountPath: /opt/bitnami/nginx/conf/server_blocks
+          name: nginx-conf
+      - env:
+        - name: BUILDSECRET
+          value: {{ .Values.secret }}
+        - name: BUILDROOT
+          value: /builds
+        - name: WORKPATH
+          value: /work
+        - name: REMOTEURL
+          value: {{ .Values.git.docs }}
+        image: ' ' # image-registry.openshift-image-registry.svc:5000/{{ .Release.Namespace }}/docs-preview:latest
+        imagePullPolicy: IfNotPresent
+        name: docs-preview
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1G
+          requests:
+            cpu: 200m
+            memory: 200M
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /builds
+          name: content-vol
+        - mountPath: /work
+          name: workpath
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: content-vol
+      - emptyDir: {}
+        name: workpath
+      - configMap:
+          defaultMode: 420
+          name: nginx-config
+        name: nginx-conf
+status: {}

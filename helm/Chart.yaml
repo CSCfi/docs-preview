@@ -1,0 +1,6 @@
+apiVersion: v2
+name: helm
+description: Deploys docs-preview in Kubernetes
+type: application
+version: 0.2.0
+appVersion: "1.2.0"

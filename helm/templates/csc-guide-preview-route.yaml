@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    app: docs-preview
+  name: docs-preview-route
+spec:
+  host: {{ .Values.host }}
+  port:
+    targetPort: 8080-tcp
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: docs-preview
+    weight: 100
+  wildcardPolicy: None
+status: {}
