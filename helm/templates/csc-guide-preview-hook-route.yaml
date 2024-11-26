@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: docs-preview-build-hook
+spec:
+  host: {{ .Release.Namespace }}-hook.2.rahtiapp.fi
+  port:
+    targetPort: 8081
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: docs-preview-hook
+    weight: 100
+  wildcardPolicy: None
+status: {}

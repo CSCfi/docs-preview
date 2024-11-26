@@ -1,0 +1,30 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    app: docs-preview
+  name: docs-preview
+spec:
+  failedBuildsHistoryLimit: 2
+  output:
+    to:
+      kind: ImageStreamTag
+      name: docs-preview:latest
+  postCommit: {}
+  resources: {}
+  runPolicy: Serial
+  source:
+    git:
+      uri: {{ .Values.git.source }}
+    type: Git
+  strategy:
+    sourceStrategy:
+      from:
+        kind: DockerImage
+        name: registry.fedoraproject.org/f33/python3
+    type: Source
+  successfulBuildsHistoryLimit: 1
+  triggers:
+  - type: ImageChange
+  - type: ConfigChange
+status: {}

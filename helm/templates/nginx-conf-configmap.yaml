@@ -1,0 +1,16 @@
+apiVersion: v1
+data:
+  my_server_block.conf: |
+    server {
+      listen 8080;
+      location / {
+        root /app;
+        index index.html;
+        autoindex on;
+      }
+      #rewrite ^/(.*[^/])$ $scheme://$http_host/$1/ permanent;
+      port_in_redirect off;
+    }
+kind: ConfigMap
+metadata:
+  name: nginx-config
