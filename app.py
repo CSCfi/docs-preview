@@ -106,6 +106,9 @@ def init_repo(init_path, remote_url):
     return repo, origin
 
 def mkdirp(path):
+    '''
+    Makes the dir and it does not complain if it exists
+    '''
     os.makedirs(path, exist_ok=True)
 
 def buildRef(repo, ref, state):
@@ -304,7 +307,9 @@ def listenBuild(secret):
 
 
 def build():
-
+    '''
+    Clones the repo, and makes sure that every branch is built, and prunes the deleted branches
+    '''
     app.logger.info("* Start build loop")
 
     buildState = read_state()
@@ -340,6 +345,9 @@ def write_state(state):
         json.dump(state, file)
 
 def read_state():
+    '''
+    Read the current state of bes and commits from file
+    '''
     try:
         with open(STATEFILE, 'r', encoding="utf-8") as file:
             return json.load(file)
