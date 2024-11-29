@@ -128,7 +128,10 @@ def buildRef(repo, ref, state):
         app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
         mkdirp(buildpath)
 
-        scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
+        scripts=["generate_alpha.sh",
+                 "generate_by_system.sh",
+                 "generate_new.sh",
+                 "generate_glossary.sh"]
 
         for script in scripts:
             cmd = f"sh -c 'cd {config['workPath']} && ./scripts/{script} 2>&1'"
@@ -240,7 +243,7 @@ def pruneBuilds(repo, origin):
     try:
         builtrefs = os.listdir(config["buildRoot"]+'/origin')
     except FileNotFoundError:
-        app.logger.debug("* Clean buildRoot")
+        app.logger.debug("* Clean BUILD_ROOT")
         return
 
     srefs = [str(x) for x in origin.refs]
