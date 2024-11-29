@@ -134,14 +134,14 @@ def buildRef(repo, ref, state):
 
         #
         # WORKAROUND
-        with open('%s/mkdocs.yml' % config["workPath"], 'r') as file :
+        with open(f"{config['workPath']}/mkdocs.yml", 'r', encoding="utf-8") as file :
             filedata = file.read()
 
         # Replace the target string
         filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, str(ref)))
 
         # Write the file out again
-        with open('%s/mkdocs.yml2' % config["workPath"], 'w') as file:
+        with open(f"{config['workPath']}/mkdocs.yml2", 'w', encoding="utf-8") as file:
             file.write(filedata)
         #
 
@@ -182,14 +182,14 @@ def buildCommit(commit, branch):
 
     #
     # WORKAROUND
-    with open('%s/mkdocs.yml' % tmpFolder, 'r') as file :
+    with open(f"{tmp_folder}/mkdocs.yml", 'r', encoding="utf-8") as file :
         filedata = file.read()
 
     # Replace the target string
     filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, branch))
 
     # Write the file out again
-    with open('%s/mkdocs.yml2' % tmpFolder, 'w') as file:
+    with open(f'{tmp_folder}/mkdocs.yml2', 'w', encoding="utf-8") as file:
         file.write(filedata)
         #
 
@@ -325,12 +325,15 @@ def build():
     cleanUpZombies()
 
 def write_state(state):
-    with open(STATEFILE, 'w') as file:
+    '''
+    Writes the state of the brnaches and their commits into the JSON state file
+    '''
+    with open(STATEFILE, 'w', encoding="utf-8") as file:
         json.dump(state, file)
 
 def read_state():
     try:
-        with open(STATEFILE, 'r') as file:
+        with open(STATEFILE, 'r', encoding="utf-8") as file:
             return json.load(file)
     except FileNotFoundError:
         return {}
