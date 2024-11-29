@@ -293,7 +293,7 @@ def listenBuild(secret):
             commit = request.json['after']
             branch = get_branch(commit)
 
-        if branch == None:
+        if branch is None:
             return Response(f"Branch not found for commit {commit}")
 
         print(branch)
@@ -306,7 +306,8 @@ def listenBuild(secret):
     thread = threading.Thread(target=build)
     thread.start()
 
-    return Response('{\"built\":\"started\"}')
+    return Response('{\"built\":\"started\"}',
+                    content_type="application/json")
 
 
 def build():
@@ -375,7 +376,7 @@ if __name__=="__main__":
 
     if BUILD_SECRET == DEFAULT_SECRET:
         app.logger.error("Don't use default secret since it's freely available in the internet")
-        exit(1)
+        sys.exit(1)
 
     thread = threading.Thread(target=build)
     thread.start()
