@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-import git, os, json, threading
+'''
+Builds and serves the documention sites of every branch
+'''
+
+import logging
+import threading
+import os
+import json
+import sys
 
 from shutil import copytree, rmtree
 from random import randint
 from flask import Flask, Response, request
-import logging
 
+import git
 # defaults
 
 defaultStateFile='/tmp/build_state.json'
