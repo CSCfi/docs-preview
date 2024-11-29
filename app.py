@@ -75,20 +75,20 @@ buildState = {}
 
 ### non-route functions
 
-def initRepo(workPath, remote_url):
+def init_repo(init_path, remote_url):
     """
     Updates current repository to match `origin` remote.
     Does pruning fetch.
     """
 
-    mkdirp(workPath)
+    mkdirp(init_path)
 
-    repo = git.Repo.init(workPath)
+    repo = git.Repo.init(init_path)
 
     try:
         origin = repo.remote('origin')
     except ValueError:
-        app.logger.info(f"Creating origin {remote_url} into {workPath}")
+        app.logger.info(f"Creating origin {remote_url} into {init_path}")
         origin = repo.create_remote('origin', remote_url)
 
     assert origin.exists()
@@ -249,8 +249,11 @@ def pruneBuilds(repo, origin):
 
     app.logger.debug("DONE pruning old builds.")
 
-def getBranch(commit):
-    repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+def get_branch(commit):
+    '''
+    Given a commit, it returns the corresponding branch containing the commit
+    '''
+    repo, _ = init_repo(config["workPath"], config["remoteUrl"])
 
     # Get the branch name
     for ref in repo.refs:
@@ -274,10 +277,10 @@ def listenBuild(secret):
     if request.headers.get('Content-Type') == 'application/json':
 
         commit = request.json['after']
-        branch = getBranch(commit)
+        branch = get_branch(commit)
         if branch is None:
             commit = request.json['after']
-            branch = getBranch(commit)
+            branch = get_branch(commit)
 
         if branch == None:
             return Response(f"Branch not found for commit {commit}")
@@ -301,7 +304,7 @@ def build():
 
     buildState = read_state()
 
-    repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+    repo, origin = init_repo(config["workPath"], config["remoteUrl"])
 
     output = ""
 
