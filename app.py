@@ -121,47 +121,50 @@ def build_ref(repo, ref, state):
 
     app.logger.info(f"Checking [{ref}]: {str(ref.commit)} == {state['built']}")
 
-    if not str(ref.commit) == state["built"] or not os.path.isdir(buildpath):
-        app.logger.info(f"  [{ref}] re-building {ref.commit}")
-        repo.git.reset('--hard',ref)
-        repo.git.checkout(ref)
-        app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
-        mkdirp(buildpath)
+    if os.path.isdir(buildpath) and str(ref.commit) == state["built"]:
+        app.logger.info(f"         [{str(ref)}]: is up to date")
+        return
 
-        scripts=["generate_alpha.sh",
-                 "generate_by_system.sh",
-                 "generate_new.sh",
-                 "generate_glossary.sh"]
+    app.logger.info(f"  [{ref}] re-building {ref.commit}")
+    repo.git.reset('--hard',ref)
+    repo.git.checkout(ref)
+    app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
+    mkdirp(buildpath)
 
-        for script in scripts:
-            cmd = f"sh -c 'cd {config['workPath']} && ./scripts/{script} 2>&1'"
-            cmdout = os.popen(cmd)
-            line = cmdout.readline()
-            app.logger.info(f"  [{ref}] # {cmd}")
-            if cmdout.close():
-                app.logger.error(f"  [{ref}] {line}")
-            else:
-                app.logger.info(f"  [{ref}] {line}")
+    scripts=["generate_alpha.sh",
+             "generate_by_system.sh",
+             "generate_new.sh",
+             "generate_glossary.sh"]
 
-        #
-        # WORKAROUND
-        with open(f"{config['workPath']}/mkdocs.yml", 'r', encoding="utf-8") as file :
-            filedata = file.read()
-
-        # Replace the target string
-        filedata = filedata.replace(f'SITE_URL: "{SITE_URL}"', f'SITE_URL: "{SITE_URL}{str(ref)}"')
-
-        # Write the file out again
-        with open(f"{config['workPath']}/mkdocs.yml2", 'w', encoding="utf-8") as file:
-            file.write(filedata)
-        #
-
-        cmd = f"sh -c 'cd {config['workPath']} && mkdocs build --site-dir {buildpath} -f mkdocs.yml2 2>&1'"
-        app.logger.info(f"  [{ref}] # %s" % (cmd))
+    for script in scripts:
+        cmd = f"sh -c 'cd {config['workPath']} && ./scripts/{script} 2>&1'"
         cmdout = os.popen(cmd)
-        app.logger.debug(cmdout.read())
+        line = cmdout.readline()
+        app.logger.info(f"  [{ref}] # {cmd}")
+        if cmdout.close():
+            app.logger.error(f"  [{ref}] {line}")
+        else:
+            app.logger.info(f"  [{ref}] {line}")
 
-        state["built"] = str(ref.commit)
+    #
+    # WORKAROUND
+    with open(f"{config['workPath']}/mkdocs.yml", 'r', encoding="utf-8") as file :
+        filedata = file.read()
+
+    # Replace the target string
+    filedata = filedata.replace(f'SITE_URL: "{SITE_URL}"', f'SITE_URL: "{SITE_URL}{str(ref)}"')
+
+    # Write the file out again
+    with open(f"{config['workPath']}/mk2.yml", 'w', encoding="utf-8") as file:
+        file.write(filedata)
+    #
+
+    cmd = f"sh -c 'cd {config['workPath']} && mkdocs build --site-dir {buildpath} -f mk2.yml 2>&1'"
+    app.logger.info(f"  [{ref}] # %s" % (cmd))
+    cmdout = os.popen(cmd)
+    app.logger.debug(cmdout.read())
+
+    state["built"] = str(ref.commit)
 
 def build_commit(commit, branch):
     '''
