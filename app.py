@@ -101,7 +101,7 @@ def init_repo(init_path, remote_url):
 
     app.logger.info("* Fetching remote branches' content")
     for fetch_info in origin.fetch(None, None, prune=True):
-        app.logger.info("  Branch [%s], commit [%s]" % (fetch_info.ref, fetch_info.commit))
+        app.logger.info(f"  Branch [{fetch_info.ref}], commit [{fetch_info.commit}]")
 
     return repo, origin
 
@@ -116,19 +116,19 @@ def buildRef(repo, ref, state):
 
     buildpath = os.path.join(config["buildRoot"], str(ref))
 
-    app.logger.info('Checking [%s]: %s == %s' % (ref, str(ref.commit), state["built"]))
+    app.logger.info(f"Checking [{ref}]: {str(ref.commit)} == {state['built']}")
 
     if not str(ref.commit) == state["built"] or not os.path.isdir(buildpath):
-        app.logger.info("  [%s] re-building %s" % (ref, ref.commit))
+        app.logger.info(f"  [{ref}] re-building {ref.commit}")
         repo.git.reset('--hard',ref)
         repo.git.checkout(ref)
-        app.logger.debug("  [%s] buildpath = %s" % (ref, buildpath))
+        app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
         mkdirp(buildpath)
 
         scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
 
         for script in scripts:
-            cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (config["workPath"],script)
+            cmd = f"sh -c 'cd {config['workPath']} && ./scripts/{script} 2>&1'"
             cmdout = os.popen(cmd)
             line = cmdout.readline()
             app.logger.info(f"  [{ref}] # {cmd}")
@@ -150,7 +150,7 @@ def buildRef(repo, ref, state):
             file.write(filedata)
         #
 
-        cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (config["workPath"], buildpath)
+        cmd = f"sh -c 'cd {config['workPath']} && mkdocs build --site-dir {buildpath} -f mkdocs.yml2 2>&1'"
         app.logger.info(f"  [{ref}] # %s" % (cmd))
         cmdout = os.popen(cmd)
         app.logger.debug(cmdout.read())
@@ -161,7 +161,7 @@ def buildCommit(commit, branch):
 
     buildpath = os.path.join(config["buildRoot"], branch)
 
-    tmpFolder = '/tmp/%s-%s' % (commit, randint(0,9999))
+    tmp_folder = f'/tmp/{commit}-{randint(0,9999)}'
 
     try:
         rmtree(tmpFolder)
@@ -180,8 +180,8 @@ def buildCommit(commit, branch):
     scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
 
     for script in scripts:
-        cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (tmpFolder, script)
-        print("Executing: %s" % (cmd))
+        cmd = f"sh -c 'cd {tmp_folder} && ./scripts/{script} 2>&1'"
+        print(f"Executing: {cmd}")
         cmdout = os.popen(cmd)
         print(cmdout.read())
 
@@ -198,8 +198,8 @@ def buildCommit(commit, branch):
         file.write(filedata)
         #
 
-    cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (tmpFolder, buildpath)
-    print("Executing: %s" % (cmd))
+    cmd = f"sh -c 'cd {tmp_folder} && mkdocs build --site-dir {buildpath} -f mkdocs.yml2 2>&1'"
+    print(f"Executing: {cmd}")
     cmdout = os.popen(cmd)
     print(cmdout.read())
 
@@ -228,8 +228,8 @@ def cleanUpZombies():
     spid = -1
     while spid != 0:
         try:
-            spid, status, rusage = os.wait3(os.WNOHANG)
-            app.logger.debug("* Process %d with status %d" % (spid, status))
+            spid, status, _ = os.wait3(os.WNOHANG)
+            app.logger.debug(f"* Process {spid} with status {status}")
         except ChildProcessError:
             break
 
@@ -247,7 +247,7 @@ def pruneBuilds(repo, origin):
 
     for bref in builtrefs:
         if not bref in srefs:
-            print('found stale preview: ' + bref)
+            print(f'found stale preview: {bref}')
             remove_build = config["buildRoot"] + '/' + bref
             print('Removing ' + remove_build)
             rmtree(remove_build)
@@ -316,7 +316,7 @@ def build():
     # Clean buildState
     for ref in origin.refs:
         sref = str(ref)
-        output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
+        output = output + f"Found {sref} ({str(ref.commit)})<br>"
 
         if not sref in buildState:
             app.logger.debug(f"Adding {sref} branch to build state")
