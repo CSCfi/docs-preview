@@ -16,13 +16,13 @@ from flask import Flask, Response, request
 import git
 # defaults
 
-defaultStateFile='/tmp/build_state.json'
-defaultWorkPath = "work"
-defaultBuildRoot = "/tmp/preview-bot/builds"
-defaultRemoteUrl = "https://github.com/CSCfi/csc-user-guide"
-defaultSiteURL = "https://csc-guide-preview.rahtiapp.fi/"
-defaultSecret = "changeme" # we are using secret but we should be utilizing whitelists
-defaultPort = 8081
+DEFAULT_STATE_FILE='/tmp/build_state.json'
+DEFAULT_WORK_PATH = "work"
+DEFAULT_BUILD_ROOT = "/tmp/preview-bot/builds"
+DEFAULT_REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
+DEFAULT_SITE_URL = "https://csc-guide-preview.rahtiapp.fi/"
+DEFAULT_SECRET = "changeme" # we are using secret but we should be utilizing whitelists
+DEFAULT_PORT = 8081
 
 try:
     STATEFILE = os.environ["STATEFILE"]
@@ -30,48 +30,53 @@ except KeyError:
     STATEFILE = '/tmp/build_state.json'
 
 try:
-    workPath = os.environ["WORKPATH"]
+    WORK_PATH = os.environ["WORKPATH"]
 except KeyError:
-    workPath = defaultWorkPath
+    WORK_PATH = DEFAULT_WORK_PATH
 
 try:
-    buildRoot = os.environ["BUILDROOT"]
+    BUILD_ROOT = os.environ["BUILDROOT"]
 except KeyError:
-    buildRoot = defaultBuildRoot
+    BUILD_ROOT = DEFAULT_BUILD_ROOT
 
 try:
-    siteURL = os.environ["SITEURL"]
+    SITE_URL = os.environ["SITEURL"]
 except KeyError:
-    siteURL = defaultSiteURL
+    SITE_URL = DEFAULT_SITE_URL
 
 try:
-    buildSecret = os.environ["BUILDSECRET"]
+    BUILD_SECRET = os.environ["BUILDSECRET"]
 except KeyError:
-    buildSecret = defaultSecret
+    BUILD_SECRET = DEFAULT_SECRET
 
 try:
-    remoteUrl = os.environ["REMOTEURL"]
+    PORT = os.environ["PORT"]
 except KeyError:
-    remoteUrl = "https://github.com/CSCfi/csc-user-guide"
+    PORT = DEFAULT_PORT
+
+try:
+    REMOTE_URL = os.environ["REMOTEURL"]
+except KeyError:
+    REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
 
 # Configurations in CONFIGFILE will override other environment variables
 try:
-    configFile = os.environ["CONFIGFILE"]
+    CONFIG_FILE = os.environ["CONFIGFILE"]
 except KeyError:
-    configFile = None
+    CONFIG_FILE = None
 
 # Default configuration
 
 config = {
-    "workPath": workPath,
-    "remoteUrl": remoteUrl,
-    "buildRoot": buildRoot,
+    "workPath": WORK_PATH,
+    "remoteUrl": REMOTE_URL,
+    "buildRoot": BUILD_ROOT,
     "debug": "True",
-    "secret": buildSecret,
+    "secret": BUILD_SECRET,
     "prune": "True"
     }
 
-buildState = {}
+#build_state = {}
 
 ### non-route functions
 
@@ -138,7 +143,7 @@ def buildRef(repo, ref, state):
             filedata = file.read()
 
         # Replace the target string
-        filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, str(ref)))
+        filedata = filedata.replace(f'SITE_URL: "{SITE_URL}"', f'SITE_URL: "{SITE_URL}{str(ref)}"')
 
         # Write the file out again
         with open(f"{config['workPath']}/mkdocs.yml2", 'w', encoding="utf-8") as file:
@@ -186,7 +191,7 @@ def buildCommit(commit, branch):
         filedata = file.read()
 
     # Replace the target string
-    filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, branch))
+    filedata = filedata.replace(f"SITE_URL: {SITE_URL}", f'SITE_URL: "{SITE_URL}{branch}"')
 
     # Write the file out again
     with open(f'{tmp_folder}/mkdocs.yml2', 'w', encoding="utf-8") as file:
@@ -345,19 +350,19 @@ def read_state():
 if __name__=="__main__":
     app.logger.setLevel(logging.INFO)
 
-    if not configFile == None:
-        app.logger.info("Loading configuration from file: " + configFile)
-        with open(configFile) as config_file:
+    if CONFIG_FILE is not None:
+        app.logger.info("Loading configuration from file: " + CONFIG_FILE)
+        with open(CONFIG_FILE, encoding="utf-8") as config_file:
             config = json.load(config_file)
-        buildSecret = config["secret"]
-        workPath = config["workPath"]
-        buildRoot = config["buildRoot"]
+        BUILD_SECRET = config["secret"]
+        WORK_PATH = config["workPath"]
+        BUILD_ROOT = config["buildRoot"]
 
-    app.logger.info("workPath: " + workPath)
-    app.logger.info("buildRoot: " + buildRoot)
-    app.logger.info("buildSecret: " + buildSecret)
+    app.logger.info("WORK_PATH: " + WORK_PATH)
+    app.logger.info("BUILD_ROOT: " + BUILD_ROOT)
+    app.logger.info("BUILD_SECRET: " + BUILD_SECRET)
 
-    if buildSecret == defaultSecret:
+    if BUILD_SECRET == DEFAULT_SECRET:
         app.logger.error("Don't use default secret since it's freely available in the internet")
         exit(1)
 
@@ -365,5 +370,5 @@ if __name__=="__main__":
     thread.start()
 
     app.run(debug=config["debug"]=="True",
-        port=defaultPort,
+        port=PORT,
         host='0.0.0.0')
