@@ -111,11 +111,11 @@ def mkdirp(path):
     '''
     os.makedirs(path, exist_ok=True)
 
-def buildRef(repo, ref, state):
+def build_ref(repo, ref, state):
     """
     Builds and updates.
     """
-    global config
+    #global config
 
     buildpath = os.path.join(config["buildRoot"], str(ref))
 
@@ -163,20 +163,23 @@ def buildRef(repo, ref, state):
 
         state["built"] = str(ref.commit)
 
-def buildCommit(commit, branch):
+def build_commit(commit, branch):
+    '''
+    Builds the given commit into the given branch folder. Uses a random tmp fold for the git.
+    '''
 
     buildpath = os.path.join(config["buildRoot"], branch)
 
     tmp_folder = f'/tmp/{commit}-{randint(0,9999)}'
 
     try:
-        rmtree(tmpFolder)
-    except Exception:
+        rmtree(tmp_folder)
+    except OSError:
         pass
 
-    copytree(config["workPath"], tmpFolder)
+    copytree(config["workPath"], tmp_folder)
 
-    repo = git.Repo.init(tmpFolder)
+    repo = git.Repo.init(tmp_folder)
 
     repo.git.reset('--hard', commit)
     repo.git.checkout(commit)
@@ -211,19 +214,19 @@ def buildCommit(commit, branch):
 
     app.logger.info("Built branch {branch} in commit {commit}")
 
-    #buildState = read_state()
+    build_state = read_state()
 
     try:
-        buildState[str(branch)]["built"] = str(commit)
+        build_state[str(branch)]["built"] = str(commit)
     except KeyError:
-        buildState[str(branch)] = {"sha": str(commit), "status": "init", "built": str(commit)}
-        #write_state(buildState)
+        build_state[str(branch)] = {"sha": str(commit), "status": "init", "built": str(commit)}
+        write_state(build_state)
 
-    #write_state(buildState)
+    write_state(build_state)
 
-    rmtree(tmpFolder)
+    rmtree(tmp_folder)
 
-def cleanUpZombies():
+def clean_up_zombies():
     """
     We want to clean all Zombies:
     * When spid is 0, child processes exist, but they are still alive
@@ -239,7 +242,10 @@ def cleanUpZombies():
         except ChildProcessError:
             break
 
-def pruneBuilds(repo, origin):
+def prune_builds(origin):
+    '''
+    Deletes any branch folder that is no longer in the repository
+    '''
     try:
         builtrefs = os.listdir(config["buildRoot"]+'/origin')
     except FileNotFoundError:
@@ -278,9 +284,14 @@ def get_branch(commit):
 app = Flask(__name__)
 
 @app.route("/build/<string:secret>", methods=["GET", "POST"])
-def listenBuild(secret):
-    global buildState
-    global config
+def listen_build(secret):
+    '''
+    This method listens to the given URL:
+      - Check the secret matchs
+      - If GET, checks all brnaches and builds the ones missing
+      - If POST, reads the json and builds the update branch
+    '''
+    #global config
 
     if not secret == config["secret"]:
         return "Access denied"
@@ -298,13 +309,13 @@ def listenBuild(secret):
 
         print(branch)
 
-        thread = threading.Thread(target=buildCommit, args=[commit, branch])
-        thread.start()
+        build_commit_thread = threading.Thread(target=build_commit, args=[commit, branch])
+        build_commit_thread.start()
 
         return Response(f"{{\"commit\":\"{commit}\",\"branch\":\"{branch}\"}}" )
 
-    thread = threading.Thread(target=build)
-    thread.start()
+    build_thread = threading.Thread(target=build)
+    build_thread.start()
 
     return Response('{\"built\":\"started\"}',
                     content_type="application/json")
@@ -316,30 +327,30 @@ def build():
     '''
     app.logger.info("* Start build loop")
 
-    buildState = read_state()
+    build_state = read_state()
 
     repo, origin = init_repo(config["workPath"], config["remoteUrl"])
 
     output = ""
 
-    # Clean buildState
+    # Clean build_state
     for ref in origin.refs:
         sref = str(ref)
         output = output + f"Found {sref} ({str(ref.commit)})<br>"
 
-        if not sref in buildState:
+        if not sref in build_state:
             app.logger.debug(f"Adding {sref} branch to build state")
-            buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+            build_state[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
 
     # Prune nonexisting builds
     if "prune" in config and config["prune"]:
-        pruneBuilds(repo, origin)
+        prune_builds(origin)
     # Refresh builds
     for ref in origin.refs:
-        buildRef(repo, ref, buildState[str(ref)])
-        write_state(buildState)
+        build_ref(repo, ref, build_state[str(ref)])
+        write_state(build_state)
 
-    cleanUpZombies()
+    clean_up_zombies()
 
 def write_state(state):
     '''
