@@ -1,7 +1,7 @@
 # Additional packages for preview
 Flask==2.2.5
 itsdangerous==2.1.2
-werkzeug==3.0.3
+werkzeug==3.0.6
 
 # Packages for building the static pages
 babel==2.16.0
@@ -42,3 +42,4 @@ six==1.16.0
 smmap==5.0.1
 urllib3==2.2.2
 watchdog==4.0.2
+
