@@ -8,12 +8,14 @@ import threading
 import os
 import json
 import sys
+import signal
 
 from shutil import copytree, rmtree
 from random import randint
 from flask import Flask, Response, request
 
 import git
+from git.exc import GitCommandError
 # defaults
 
 DEFAULT_STATE_FILE='/tmp/build_state.json'
@@ -126,7 +128,11 @@ def build_ref(repo, ref, state):
         return
 
     app.logger.info(f"  [{ref}] re-building {ref.commit}")
-    repo.git.reset('--hard',ref)
+    try:
+        repo.git.reset('--hard',ref)
+    except GitCommandError:
+        app.logger.error(f"         [{str(ref)}]: cannot reset hard at this moment")
+
     repo.git.checkout(ref)
     app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
     mkdirp(buildpath)
@@ -164,6 +170,8 @@ def build_ref(repo, ref, state):
     cmdout = os.popen(cmd)
     app.logger.debug(cmdout.read())
 
+    cmdout.close()
+
     state["built"] = str(ref.commit)
 
 def build_commit(commit, branch):
@@ -197,6 +205,8 @@ def build_commit(commit, branch):
         cmdout = os.popen(cmd)
         print(cmdout.read())
 
+        cmdout.close()
+
     #
     # WORKAROUND
     with open(f"{tmp_folder}/mkdocs.yml", 'r', encoding="utf-8") as file :
@@ -214,6 +224,7 @@ def build_commit(commit, branch):
     print(f"Executing: {cmd}")
     cmdout = os.popen(cmd)
     print(cmdout.read())
+    cmdout.close()
 
     app.logger.info("Built branch {branch} in commit {commit}")
 
@@ -236,14 +247,15 @@ def clean_up_zombies():
     * When ChildProcessError raises, it means that there are no children left
     """
 
-    app.logger.info("* Cleaning up Zombies")
+    app.logger.info(f"* Cleaning up Zombies. This is {os.getpid()}" )
     spid = -1
     while spid != 0:
         try:
             spid, status, _ = os.wait3(os.WNOHANG)
-            app.logger.debug(f"* Process {spid} with status {status}")
+            app.logger.info(f"* Process {spid} with status {status}")
         except ChildProcessError:
             break
+    app.logger.info("Cleaning process done.")
 
 def prune_builds(origin):
     '''
@@ -353,8 +365,6 @@ def build():
         build_ref(repo, ref, build_state[str(ref)])
         write_state(build_state)
 
-    clean_up_zombies()
-
 def write_state(state):
     '''
     Writes the state of the brnaches and their commits into the JSON state file
@@ -371,6 +381,10 @@ def read_state():
             return json.load(file)
     except FileNotFoundError:
         return {}
+
+def signal_handler(sig, frame):
+    clean_up_zombies()
+
 ### Entry functions
 
 if __name__=="__main__":
@@ -394,6 +408,8 @@ if __name__=="__main__":
 
     thread = threading.Thread(target=build)
     thread.start()
+
+    signal.signal(signal.SIGCHLD, signal_handler)
 
     app.run(debug=config["debug"]=="True",
         port=PORT,
