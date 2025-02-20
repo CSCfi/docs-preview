@@ -1,36 +1,65 @@
 #!/usr/bin/env python3
-import git, os, shutil, json
+'''
+Builds and serves the documention sites of every branch
+'''
 
-from flask import Flask, Response
+import logging
+import threading
+import os
+import json
+import sys
+import signal
 
+from shutil import copytree, rmtree
+from random import randint
+from flask import Flask, Response, request
+
+import git
+from git.exc import GitCommandError
 # defaults
 
-defaultWorkPath = "work"
-defaultBuildRoot = "/tmp/preview-bot/builds"
-defaultRemoteUrl = "https://github.com/Lumi-supercomputer/lumi-userguide.git"
-defaultSiteURL = "https://csc-guide-preview.rahtiapp.fi/"
-defaultSecret = "changeme" # we are using secret but we should be utilizing whitelists
-defaultPort = 8081
+DEFAULT_STATE_FILE='/tmp/build_state.json'
+DEFAULT_WORK_PATH = "work"
+DEFAULT_BUILD_ROOT = "/tmp/preview-bot/builds"
+DEFAULT_REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
+DEFAULT_SITE_URL = "https://csc-guide-preview.rahtiapp.fi/"
+DEFAULT_SECRET = "changeme" # we are using secret but we should be utilizing whitelists
+DEFAULT_PORT = 8081
 
 try:
-  workPath = os.environ["WORKPATH"]
+    STATEFILE = os.environ["STATEFILE"]
 except KeyError:
-  workPath = defaultWorkPath
+    STATEFILE = '/tmp/build_state.json'
 
 try:
-  buildRoot = os.environ["BUILDROOT"]
+    WORK_PATH = os.environ["WORKPATH"]
 except KeyError:
-  buildRoot = defaultBuildRoot
+    WORK_PATH = DEFAULT_WORK_PATH
 
 try:
-  siteURL = os.environ["SITEURL"]
+    BUILD_ROOT = os.environ["BUILDROOT"]
 except KeyError:
-  siteURL = defaultSiteURL
+    BUILD_ROOT = DEFAULT_BUILD_ROOT
 
 try:
-  buildSecret = os.environ["BUILDSECRET"]
+    SITE_URL = os.environ["SITEURL"]
 except KeyError:
-  buildSecret = defaultSecret
+    SITE_URL = DEFAULT_SITE_URL
+
+try:
+    BUILD_SECRET = os.environ["BUILDSECRET"]
+except KeyError:
+    BUILD_SECRET = DEFAULT_SECRET
+
+try:
+    PORT = os.environ["PORT"]
+except KeyError:
+    PORT = DEFAULT_PORT
+
+try:
+    REMOTE_URL = os.environ["REMOTEURL"]
+except KeyError:
+    REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
 
 try:
   remoteUrl = os.environ["REMOTEURL"]
@@ -39,202 +68,353 @@ except KeyError:
 
 # Configurations in CONFIGFILE will override other environment variables
 try:
-  configFile = os.environ["CONFIGFILE"]
+    CONFIG_FILE = os.environ["CONFIGFILE"]
 except KeyError:
-  configFile = None
+    CONFIG_FILE = None
 
-# Default configuration 
-
+# Default configuration
 config = {
-    "workPath": workPath, 
-    "remoteUrl": remoteUrl,
-    "buildRoot": buildRoot,
-    "debug": "False", 
-    "secret": buildSecret,
+    "workPath": WORK_PATH,
+    "remoteUrl": REMOTE_URL,
+    "buildRoot": BUILD_ROOT,
+    "debug": "True",
+    "secret": BUILD_SECRET,
     "prune": "True"
     }
 
-buildState = {}
+#build_state = {}
 
 ### non-route functions
 
-def initRepo(workPath, remote_url):
-  """
-  Updates current repository to match `origin` remote.
-  Does pruning fetch.
-  """
+def init_repo(init_path, remote_url):
+    """
+    Updates current repository to match `origin` remote.
+    Does pruning fetch.
+    """
 
-  mkdirp(workPath)
+    mkdirp(init_path)
 
-  repo = git.Repo.init(workPath)
+    repo = git.Repo.init(init_path)
 
-  try:
-    origin = repo.remote('origin')
-  except ValueError:
-    print("creating origin")
-    origin = repo.create_remote('origin', remote_url)
+    try:
+        origin = repo.remote('origin')
+    except ValueError:
+        app.logger.info(f"Creating origin {remote_url} into {init_path}")
+        origin = repo.create_remote('origin', remote_url)
 
-  assert origin.exists()
-  assert origin == repo.remotes.origin == repo.remotes['origin']
+    assert origin.exists()
+    assert origin == repo.remotes.origin == repo.remotes['origin']
 
+    app.logger.info("* Fetching remote branches' content")
+    for fetch_info in origin.fetch(None, None, prune=True):
+        app.logger.info(f"  Branch [{fetch_info.ref}], commit [{fetch_info.commit}]")
 
-  for fetch_info in origin.fetch(None, None, prune=True):
-    print("Updated %s in %s" % (fetch_info.ref, fetch_info.commit))
-
-  return repo, origin
+    return repo, origin
 
 def mkdirp(path):
-  os.makedirs(path, exist_ok=True)
+    '''
+    Makes the dir and it does not complain if it exists
+    '''
+    os.makedirs(path, exist_ok=True)
 
-def buildRef(repo, ref, state):
-  """
-  Builds and updates.
-  """
-  global config
+def build_ref(repo, ref, state):
+    """
+    Builds and updates.
+    """
+    #global config
 
-  print(str(ref.commit), state["built"])
-  buildpath = os.path.join(config["buildRoot"], str(ref))
+    buildpath = os.path.join(config["buildRoot"], str(ref))
 
-  if not str(ref.commit) == state["built"] or not os.path.isdir(buildpath):
-    print("re-building %s in %s" % (ref, ref.commit))
-    repo.git.reset('--hard',ref)
+    app.logger.info(f"Checking [{ref}]: {str(ref.commit)} == {state['built']}")
+
+    if os.path.isdir(buildpath) and str(ref.commit) == state["built"]:
+        app.logger.info(f"         [{str(ref)}]: is up to date")
+        return
+
+    app.logger.info(f"  [{ref}] re-building {ref.commit}")
+    try:
+        repo.git.reset('--hard',ref)
+    except GitCommandError:
+        app.logger.error(f"         [{str(ref)}]: cannot reset hard at this moment")
+
     repo.git.checkout(ref)
-    print("buildpath = %s" % (buildpath))
+    app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
+    mkdirp(buildpath)
+
+    scripts=["generate_alpha.sh",
+             "generate_by_system.sh",
+             "generate_new.sh",
+             "generate_glossary.sh"]
+
+    for script in scripts:
+        cmd = f"sh -c 'cd {config['workPath']} && ./scripts/{script} 2>&1'"
+        cmdout = os.popen(cmd)
+        line = cmdout.readline()
+        app.logger.info(f"  [{ref}] # {cmd}")
+        if cmdout.close():
+            app.logger.error(f"  [{ref}] {line}")
+        else:
+            app.logger.info(f"  [{ref}] {line}")
+
+    #
+    # WORKAROUND
+    with open(f"{config['workPath']}/mkdocs.yml", 'r', encoding="utf-8") as file :
+        filedata = file.read()
+
+    # Replace the target string
+    filedata = filedata.replace(f'SITE_URL: "{SITE_URL}"', f'SITE_URL: "{SITE_URL}{str(ref)}"')
+
+    # Write the file out again
+    with open(f"{config['workPath']}/mk2.yml", 'w', encoding="utf-8") as file:
+        file.write(filedata)
+    #
+
+    cmd = f"sh -c 'cd {config['workPath']} && mkdocs build --site-dir {buildpath} -f mk2.yml 2>&1'"
+    app.logger.info(f"  [{ref}] # %s" % (cmd))
+    cmdout = os.popen(cmd)
+    app.logger.debug(cmdout.read())
+
+    cmdout.close()
+
+    state["built"] = str(ref.commit)
+
+def build_commit(commit, branch):
+    '''
+    Builds the given commit into the given branch folder. Uses a random tmp fold for the git.
+    '''
+
+    buildpath = os.path.join(config["buildRoot"], branch)
+
+    tmp_folder = f'/tmp/{commit}-{randint(0,9999)}'
+
+    try:
+        rmtree(tmp_folder)
+    except OSError:
+        pass
+
+    copytree(config["workPath"], tmp_folder)
+
+    repo = git.Repo.init(tmp_folder)
+
+    repo.git.reset('--hard', commit)
+    repo.git.checkout(commit)
+
     mkdirp(buildpath)
 
     scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
 
     for script in scripts:
-        cmd = "sh -c 'cd %s && ./scripts/%s 2>&1'" % (config["workPath"],script)
-        print("Executing: %s" % (cmd))
+        cmd = f"sh -c 'cd {tmp_folder} && ./scripts/{script} 2>&1'"
+        print(f"Executing: {cmd}")
         cmdout = os.popen(cmd)
         print(cmdout.read())
 
+        cmdout.close()
+
     #
     # WORKAROUND
-    with open('%s/mkdocs.yml' % config["workPath"], 'r') as file :
-      filedata = file.read()
+    with open(f"{tmp_folder}/mkdocs.yml", 'r', encoding="utf-8") as file :
+        filedata = file.read()
 
     # Replace the target string
-    filedata = filedata.replace('site_url: "%s"' % siteURL, 'site_url: "%s%s"' % (siteURL, str(ref)))
+    filedata = filedata.replace(f"SITE_URL: {SITE_URL}", f'SITE_URL: "{SITE_URL}{branch}"')
 
     # Write the file out again
-    with open('%s/mkdocs.yml2' % config["workPath"], 'w') as file:
-      file.write(filedata)
-    #
+    with open(f'{tmp_folder}/mkdocs.yml2', 'w', encoding="utf-8") as file:
+        file.write(filedata)
+        #
 
-    cmd = "sh -c 'cd %s && mkdocs build --site-dir %s -f mkdocs.yml2 2>&1'" % (config["workPath"], buildpath)
-    print("Executing: %s" % (cmd))
+    cmd = f"sh -c 'cd {tmp_folder} && mkdocs build --site-dir {buildpath} -f mkdocs.yml2 2>&1'"
+    print(f"Executing: {cmd}")
     cmdout = os.popen(cmd)
     print(cmdout.read())
+    cmdout.close()
 
-    state["built"] = str(ref.commit)
+    app.logger.info("Built branch {branch} in commit {commit}")
 
-def cleanUpZombies():
+    build_state = read_state()
+
+    try:
+        build_state[str(branch)]["built"] = str(commit)
+    except KeyError:
+        build_state[str(branch)] = {"sha": str(commit), "status": "init", "built": str(commit)}
+        write_state(build_state)
+
+    write_state(build_state)
+
+    rmtree(tmp_folder)
+
+def clean_up_zombies():
     """
     We want to clean all Zombies:
     * When spid is 0, child processes exist, but they are still alive
     * When ChildProcessError raises, it means that there are no children left
     """
 
-    print("Cleaning up Zombies")
+    app.logger.info(f"* Cleaning up Zombies. This is {os.getpid()}" )
     spid = -1
     while spid != 0:
-      try:
-        spid, status, rusage = os.wait3(os.WNOHANG)
-        print("Process %d with status %d" % (spid, status))
-      except ChildProcessError:
-        break
+        try:
+            spid, status, _ = os.wait3(os.WNOHANG)
+            app.logger.info(f"* Process {spid} with status {status}")
+        except ChildProcessError:
+            break
+    app.logger.info("Cleaning process done.")
 
-def pruneBuilds(repo, origin):
-  repo, origin = initRepo(config["workPath"], config["remoteUrl"])
-  try:
-    builtrefs = os.listdir(config["buildRoot"]+'/origin')
-  except FileNotFoundError:
-    print("Clean buildRoot")
-    return
+def prune_builds(origin):
+    '''
+    Deletes any branch folder that is no longer in the repository
+    '''
+    try:
+        builtrefs = os.listdir(config["buildRoot"]+'/origin')
+    except FileNotFoundError:
+        app.logger.debug("* Clean BUILD_ROOT")
+        return
 
-  srefs = [str(x) for x in origin.refs]
-  builtrefs = ['origin/'+str(x) for x in builtrefs]
+    srefs = [str(x) for x in origin.refs]
+    builtrefs = ['origin/'+str(x) for x in builtrefs]
 
-  print("Pruning old builds.")
+    app.logger.debug("* Pruning old builds.")
 
-  for bref in builtrefs:
-    if not bref in srefs:
-      print('found stale preview: ' + bref)
-      remove_build = remove_build=config["buildRoot"] + '/' + bref
-      print('Removing ' + remove_build)
-      shutil.rmtree(remove_build)
+    for bref in builtrefs:
+        if not bref in srefs:
+            print(f'found stale preview: {bref}')
+            remove_build = config["buildRoot"] + '/' + bref
+            print('Removing ' + remove_build)
+            rmtree(remove_build)
 
-  print("Done pruning old builds.")
+    app.logger.debug("DONE pruning old builds.")
+
+def get_branch(commit):
+    '''
+    Given a commit, it returns the corresponding branch containing the commit
+    '''
+    repo, _ = init_repo(config["workPath"], config["remoteUrl"])
+
+    # Get the branch name
+    for ref in repo.refs:
+        if str(ref.commit.hexsha) == str(commit):
+            return ref.name
+
+    return None
 
 ### Route functions ###
 
 app = Flask(__name__)
 
 @app.route("/build/<string:secret>", methods=["GET", "POST"])
-def listenBuild(secret):
-  global buildState
-  global config
+def listen_build(secret):
+    '''
+    This method listens to the given URL:
+      - Check the secret matchs
+      - If GET, checks all brnaches and builds the ones missing
+      - If POST, reads the json and builds the update branch
+    '''
+    #global config
 
-  if not secret == config["secret"]:
-    return "Access denied"
+    if not secret == config["secret"]:
+        return "Access denied"
 
-  response = Response('built started')
+    if request.headers.get('Content-Type') == 'application/json':
 
-  response.call_on_close(build)
+        commit = request.json['after']
+        branch = get_branch(commit)
+        if branch is None:
+            commit = request.json['after']
+            branch = get_branch(commit)
 
-  return response
+        if branch is None:
+            return Response(f"Branch not found for commit {commit}")
+
+        print(branch)
+
+        build_commit_thread = threading.Thread(target=build_commit, args=[commit, branch])
+        build_commit_thread.start()
+
+        return Response(f"{{\"commit\":\"{commit}\",\"branch\":\"{branch}\"}}" )
+
+    build_thread = threading.Thread(target=build)
+    build_thread.start()
+
+    return Response('{\"built\":\"started\"}',
+                    content_type="application/json")
+
 
 def build():
+    '''
+    Clones the repo, and makes sure that every branch is built, and prunes the deleted branches
+    '''
+    app.logger.info("* Start build loop")
 
-  print("Start build")
+    build_state = read_state()
 
-  repo, origin = initRepo(config["workPath"], config["remoteUrl"])
+    repo, origin = init_repo(config["workPath"], config["remoteUrl"])
 
-  output = ""
+    output = ""
 
-  # Clean buildState
-  for ref in origin.refs:
-    sref = str(ref)
-    output = output + "Found %s (%s)<br>" % (sref, str(ref.commit))
+    # Clean build_state
+    for ref in origin.refs:
+        sref = str(ref)
+        output = output + f"Found {sref} ({str(ref.commit)})<br>"
 
-    if not sref in buildState:
-      print(sref + " not found in " + str(buildState))
-      buildState[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+        if not sref in build_state:
+            app.logger.debug(f"Adding {sref} branch to build state")
+            build_state[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
 
-  # Prune nonexisting builds
-  if "prune" in config and config["prune"]:
-    pruneBuilds(repo, origin)
-  # Refresh builds
-  for ref in origin.refs:
-    buildRef(repo, ref, buildState[str(ref)])
+    # Prune nonexisting builds
+    if "prune" in config and config["prune"]:
+        prune_builds(origin)
+    # Refresh builds
+    for ref in origin.refs:
+        build_ref(repo, ref, build_state[str(ref)])
+        write_state(build_state)
 
-  cleanUpZombies()
+def write_state(state):
+    '''
+    Writes the state of the brnaches and their commits into the JSON state file
+    '''
+    with open(STATEFILE, 'w', encoding="utf-8") as file:
+        json.dump(state, file)
+
+def read_state():
+    '''
+    Read the current state of bes and commits from file
+    '''
+    try:
+        with open(STATEFILE, 'r', encoding="utf-8") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
+
+def signal_handler(sig, frame):
+    clean_up_zombies()
 
 ### Entry functions
 
 if __name__=="__main__":
-  if not configFile == None:
-    print("Loading configuration from file: " + configFile)
-    with open(configFile) as config_file:
-      config = json.load(config_file)
-    buildSecret = config["secret"]
-    workPath = config["workPath"]
-    buildRoot = config["buildRoot"]
+    app.logger.setLevel(logging.INFO)
 
-  print("workPath: " + workPath)
-  print("buildRoot: " + buildRoot)
-  print("buildSecret: " + "******")
+    if CONFIG_FILE is not None:
+        app.logger.info("Loading configuration from file: " + CONFIG_FILE)
+        with open(CONFIG_FILE, encoding="utf-8") as config_file:
+            config = json.load(config_file)
+        BUILD_SECRET = config["secret"]
+        WORK_PATH = config["workPath"]
+        BUILD_ROOT = config["buildRoot"]
 
-  if buildSecret == defaultSecret:
-    print("Don't use default secret since it's freely available in the internet")
-    exit(1)
+    app.logger.info("WORK_PATH: " + WORK_PATH)
+    app.logger.info("BUILD_ROOT: " + BUILD_ROOT)
+    app.logger.info("BUILD_SECRET: " + BUILD_SECRET)
 
-  listenBuild(config["secret"])
-  build()
+    if BUILD_SECRET == DEFAULT_SECRET:
+        app.logger.error("Don't use default secret since it's freely available in the internet")
+        sys.exit(1)
 
-  app.run(debug=config["debug"]=="True",
-      port=defaultPort,
-      host='0.0.0.0')
+    thread = threading.Thread(target=build)
+    thread.start()
 
+    signal.signal(signal.SIGCHLD, signal_handler)
+
+    app.run(debug=config["debug"]=="True",
+        port=PORT,
+        host='0.0.0.0')
