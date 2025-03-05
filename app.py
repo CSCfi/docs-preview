@@ -9,6 +9,7 @@ import os
 import json
 import sys
 import signal
+from urllib.parse import urljoin
 
 from shutil import copytree, rmtree
 from random import randint
@@ -21,6 +22,7 @@ from git.exc import GitCommandError
 DEFAULT_STATE_FILE='/tmp/build_state.json'
 DEFAULT_WORK_PATH = "work"
 DEFAULT_BUILD_ROOT = "/tmp/preview-bot/builds"
+DEFAULT_BASE_CONFIG = "mkdocs.yml"
 DEFAULT_REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
 DEFAULT_SITE_URL = "https://csc-guide-preview.2.rahtiapp.fi/"
 DEFAULT_SECRET = "changeme" # we are using secret but we should be utilizing whitelists
@@ -40,6 +42,11 @@ try:
     BUILD_ROOT = os.environ["BUILDROOT"]
 except KeyError:
     BUILD_ROOT = DEFAULT_BUILD_ROOT
+
+try:
+    BASE_CONFIG = os.environ["BASECONFIG"]
+except KeyError:
+    BASE_CONFIG = DEFAULT_BASE_CONFIG
 
 try:
     SITE_URL = os.environ["SITEURL"]
@@ -81,6 +88,14 @@ config = {
 #build_state = {}
 
 ### non-route functions
+
+def get_build_cmd(work_dir, build_dir, subpath, base_url=SITE_URL, base_config=BASE_CONFIG):
+    """Returns a shell command for building a preview of a branch in work_dir into build_dir with subpath appended to site_url.
+    """
+    mkdocs_config = f"\{INHERIT: {base_config}, site_url: {urljoin(base_url, subpath)}, site_dir: {build_dir}\}"
+    mkdocs_cmd = f"echo '{mkdocs_config}' | mkdocs build --config-file -"
+
+    return f"sh -c 'cd {work_dir} && {mkdocs_cmd} 2>&1'"
 
 def init_repo(init_path, remote_url):
     """
@@ -152,20 +167,10 @@ def build_ref(repo, ref, state):
         else:
             app.logger.info(f"  [{ref}] {line}")
 
-    #
-    # WORKAROUND
-    with open(f"{config['workPath']}/mkdocs.yml", 'r', encoding="utf-8") as file :
-        filedata = file.read()
+    cmd = get_build_cmd(config['workPath'],
+                        buildpath,
+                        str(ref))
 
-    # Replace the target string
-    filedata = filedata.replace(f'SITE_URL: "{SITE_URL}"', f'SITE_URL: "{SITE_URL}{str(ref)}"')
-
-    # Write the file out again
-    with open(f"{config['workPath']}/mk2.yml", 'w', encoding="utf-8") as file:
-        file.write(filedata)
-    #
-
-    cmd = f"sh -c 'cd {config['workPath']} && mkdocs build --site-dir {buildpath} -f mk2.yml 2>&1'"
     app.logger.info(f"  [{ref}] # %s" % (cmd))
     cmdout = os.popen(cmd)
     app.logger.debug(cmdout.read())
@@ -207,20 +212,10 @@ def build_commit(commit, branch):
 
         cmdout.close()
 
-    #
-    # WORKAROUND
-    with open(f"{tmp_folder}/mkdocs.yml", 'r', encoding="utf-8") as file :
-        filedata = file.read()
+    cmd = get_build_cmd(tmp_folder,
+                        buildpath,
+                        branch)
 
-    # Replace the target string
-    filedata = filedata.replace(f"SITE_URL: {SITE_URL}", f'SITE_URL: "{SITE_URL}{branch}"')
-
-    # Write the file out again
-    with open(f'{tmp_folder}/mkdocs.yml2', 'w', encoding="utf-8") as file:
-        file.write(filedata)
-        #
-
-    cmd = f"sh -c 'cd {tmp_folder} && mkdocs build --site-dir {buildpath} -f mkdocs.yml2 2>&1'"
     print(f"Executing: {cmd}")
     cmdout = os.popen(cmd)
     print(cmdout.read())
