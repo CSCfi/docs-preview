@@ -22,7 +22,7 @@ DEFAULT_STATE_FILE='/tmp/build_state.json'
 DEFAULT_WORK_PATH = "work"
 DEFAULT_BUILD_ROOT = "/tmp/preview-bot/builds"
 DEFAULT_REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
-DEFAULT_SITE_URL = "https://csc-guide-preview.rahtiapp.fi/"
+DEFAULT_SITE_URL = "https://csc-guide-preview.2.rahtiapp.fi/"
 DEFAULT_SECRET = "changeme" # we are using secret but we should be utilizing whitelists
 DEFAULT_PORT = 8081
 
