@@ -92,8 +92,8 @@ config = {
 def get_build_cmd(work_dir, build_dir, subpath, base_url=SITE_URL, base_config=BASE_CONFIG):
     """Returns a shell command for building a preview of a branch in work_dir into build_dir with subpath appended to site_url.
     """
-    mkdocs_config = f"\{INHERIT: {base_config}, site_url: {urljoin(base_url, subpath)}, site_dir: {build_dir}\}"
-    mkdocs_cmd = f"echo '{mkdocs_config}' | mkdocs build --config-file -"
+    mkdocs_config = f"{{INHERIT: {base_config}, site_url: {urljoin(base_url, subpath)}, site_dir: {build_dir}}}"
+    mkdocs_cmd = f"echo \"'\"{mkdocs_config}\"'\" | mkdocs build --config-file -"
 
     return f"sh -c 'cd {work_dir} && {mkdocs_cmd} 2>&1'"
 
