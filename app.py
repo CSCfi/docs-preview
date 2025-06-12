@@ -107,9 +107,11 @@ config = {
 ### non-route functions
 def get_scripts(basepath):
     class ShellScript:
-        @staticmethod
-        def _prepend_scripts_dir(fname):
-            return os.path.join(config["shellScriptsDir"], fname)
+        scripts_dir = config["shellScriptsDir"]
+
+        @classmethod
+        def _prepend_scripts_dir(cls, fname):
+            return os.path.join(cls.scripts_dir, fname)
 
         @staticmethod
         def _script_exists(fpath, context_dir):
@@ -119,17 +121,19 @@ def get_scripts(basepath):
         def __new__(cls, fname, context_dir):
             fpath = cls._prepend_scripts_dir(fname)
 
-            return (cls(fpath, context_dir)
-                    if cls._script_exists(fpath, context_dir)
-                    else None)
+            try:
+                assert cls._script_exists(fpath, context_dir)
+                return super(ShellScript, cls).__new__(cls)
+            except AssertionError:
+                return None
 
-        def __init__(self, fpath, context_dir):
-            self.__fpath = fpath
-            self.__dir = context_dir
+        def __init__(self, fname, context_dir):
+            self.__fpath = self._prepend_scripts_dir(fname)
+            self.__context_dir = context_dir
 
         @property
         def cmd(self):
-            return f"sh -c 'cd {self.__dir} && ./{self.__fpath} 2>&1'"
+            return f"sh -c 'cd {self.__context_dir} && ./{self.__fpath} 2>&1'"
 
     scripts = [ShellScript(fname, basepath) for fname in config["shellScripts"]]
     existent = filter(lambda s: s is not None, scripts)
