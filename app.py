@@ -27,6 +27,11 @@ DEFAULT_REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
 DEFAULT_SITE_URL = "https://csc-guide-preview.2.rahtiapp.fi/"
 DEFAULT_SECRET = "changeme" # we are using secret but we should be utilizing whitelists
 DEFAULT_PORT = 8081
+DEFAULT_SHELL_SCRIPTS_DIR = "scripts"
+DEFAULT_SHELL_SCRIPTS = ("generate_alpha.sh",
+                         "generate_by_system.sh",
+                         "generate_new.sh",
+                         "generate_glossary.sh")
 
 try:
     STATEFILE = os.environ["STATEFILE"]
@@ -68,6 +73,16 @@ try:
 except KeyError:
     REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
 
+try:
+    SHELL_SCRIPTS_DIR = os.environ["SHELL_SCRIPTS_DIR"]
+except KeyError:
+    SHELL_SCRIPTS_DIR = DEFAULT_SHELL_SCRIPTS_DIR
+
+try:
+    SHELL_SCRIPTS = os.environ["SHELL_SCRIPTS"].split(" ")
+except KeyError:
+    SHELL_SCRIPTS = DEFAULT_SHELL_SCRIPTS
+
 # Configurations in CONFIGFILE will override other environment variables
 try:
     CONFIG_FILE = os.environ["CONFIGFILE"]
@@ -82,12 +97,49 @@ config = {
     "buildRoot": BUILD_ROOT,
     "debug": "True",
     "secret": BUILD_SECRET,
-    "prune": "True"
+    "prune": "True",
+    "shellScriptsDir": SHELL_SCRIPTS_DIR,
+    "shellScripts": SHELL_SCRIPTS
     }
 
 #build_state = {}
 
 ### non-route functions
+def get_scripts(basepath):
+    class ShellScript:
+        scripts_dir = config["shellScriptsDir"]
+
+        @classmethod
+        def _prepend_scripts_dir(cls, fname):
+            return os.path.join(cls.scripts_dir, fname)
+
+        @staticmethod
+        def _script_exists(fpath, context_dir):
+            script_fpath = os.path.join(context_dir, fpath)
+            return os.path.isfile(script_fpath)
+
+        def __new__(cls, fname, context_dir):
+            fpath = cls._prepend_scripts_dir(fname)
+
+            try:
+                assert cls._script_exists(fpath, context_dir)
+                return super(ShellScript, cls).__new__(cls)
+            except AssertionError:
+                return None
+
+        def __init__(self, fname, context_dir):
+            self.__fpath = self._prepend_scripts_dir(fname)
+            self.__context_dir = context_dir
+
+        @property
+        def cmd(self):
+            return f"sh -c 'cd {self.__context_dir} && ./{self.__fpath} 2>&1'"
+
+    scripts = [ShellScript(fname, basepath) for fname in config["shellScripts"]]
+    existent = filter(lambda s: s is not None, scripts)
+
+    return list(existent)
+
 
 def get_build_cmd(work_dir, build_dir, subpath, base_url=SITE_URL, base_config=BASE_CONFIG):
     """Returns a shell command for building a preview of a branch in work_dir into build_dir with subpath appended to site_url.
@@ -152,13 +204,8 @@ def build_ref(repo, ref, state):
     app.logger.debug(f"  [{ref}] buildpath = {buildpath}")
     mkdirp(buildpath)
 
-    scripts=["generate_alpha.sh",
-             "generate_by_system.sh",
-             "generate_new.sh",
-             "generate_glossary.sh"]
-
-    for script in scripts:
-        cmd = f"sh -c 'cd {config['workPath']} && ./scripts/{script} 2>&1'"
+    for script_obj in get_scripts(config['workPath']):
+        cmd = script_obj.cmd
         cmdout = os.popen(cmd)
         line = cmdout.readline()
         app.logger.info(f"  [{ref}] # {cmd}")
@@ -202,10 +249,8 @@ def build_commit(commit, branch):
 
     mkdirp(buildpath)
 
-    scripts=["generate_alpha.sh","generate_by_system.sh","generate_new.sh","generate_glossary.sh"]
-
-    for script in scripts:
-        cmd = f"sh -c 'cd {tmp_folder} && ./scripts/{script} 2>&1'"
+    for script_obj in get_scripts(tmp_folder):
+        cmd = script_obj.cmd
         print(f"Executing: {cmd}")
         cmdout = os.popen(cmd)
         print(cmdout.read())
