@@ -10,10 +10,11 @@ import json
 import sys
 import signal
 from urllib.parse import urljoin
+from datetime import datetime
 
 from shutil import copytree, rmtree
 from random import randint
-from flask import Flask, Response, request
+from flask import Flask, Response, request, render_template
 
 import git
 from git.exc import GitCommandError
@@ -98,6 +99,7 @@ config = {
     "debug": "True",
     "secret": BUILD_SECRET,
     "prune": "True",
+    "statefile": STATEFILE,
     "shellScriptsDir": SHELL_SCRIPTS_DIR,
     "shellScripts": SHELL_SCRIPTS
     }
@@ -139,6 +141,49 @@ def get_scripts(basepath):
     existent = filter(lambda s: s is not None, scripts)
 
     return list(existent)
+
+
+def update_branch_view():
+    class Branch:
+        def __init__(self, name, state):
+            self.name = name
+            self.head = state.get('sha')
+            self.up_to_date = self.head == state.get('built')
+            self.__committed = state.get('committed')
+
+        def __lt__(self, other):
+            try:
+                return other.committed < self.committed
+            except TypeError:
+                return other.committed is not None
+
+        @property
+        def committed(self):
+            try:
+                return datetime.fromisoformat(self.__committed).astimezone()
+            except TypeError:
+                return self.__committed
+
+        @property
+        def online(self):
+            build_path = os.path.join(config["buildRoot"], 'origin', self.name)
+
+            return len(os.listdir(build_path)) > 0
+
+
+    build_state = read_state()
+    builds = os.listdir(os.path.join(config["buildRoot"], 'origin'))
+    branches = [Branch(name, state)
+                for name, state
+                in ((build, build_state.get(f"origin/{build}"))
+                    for build
+                    in builds)
+                if state is not None]
+
+    with open(os.path.join(config["buildRoot"], 'index.html'), 'w') as html_file:
+        with app.app_context():
+            content = render_template('viewer.html', branches=sorted(branches))
+            html_file.write(content)
 
 
 def get_build_cmd(work_dir, build_dir, subpath, base_url=SITE_URL, base_config=BASE_CONFIG):
@@ -225,6 +270,9 @@ def build_ref(repo, ref, state):
     cmdout.close()
 
     state["built"] = str(ref.commit)
+    state["committed"] = get_commit_timestamp(ref.commit)
+
+    update_branch_view()
 
 def build_commit(commit, branch):
     '''
@@ -273,12 +321,17 @@ def build_commit(commit, branch):
     try:
         build_state[str(branch)]["built"] = str(commit)
     except KeyError:
-        build_state[str(branch)] = {"sha": str(commit), "status": "init", "built": str(commit)}
+        build_state[str(branch)] = {"sha": str(commit),
+                                    "status": "init",
+                                    "built": str(commit),
+                                    "committed": get_commit_timestamp(commit)}
         write_state(build_state)
 
     write_state(build_state)
 
     rmtree(tmp_folder)
+
+    update_branch_view()
 
 def clean_up_zombies():
     """
@@ -319,6 +372,8 @@ def prune_builds(origin):
             print('Removing ' + remove_build)
             rmtree(remove_build)
 
+    update_branch_view()
+
     app.logger.debug("DONE pruning old builds.")
 
 def get_branch(commit):
@@ -333,6 +388,11 @@ def get_branch(commit):
             return ref.name
 
     return None
+
+def get_commit_timestamp(commit):
+    local_datetime = commit.committed_datetime.astimezone()
+
+    return local_datetime.isoformat()
 
 ### Route functions ###
 
@@ -395,7 +455,10 @@ def build():
 
         if not sref in build_state:
             app.logger.debug(f"Adding {sref} branch to build state")
-            build_state[sref] = {"sha": str(ref.commit), "status": "init", "built": None}
+            build_state[sref] = {"sha": str(ref.commit),
+                                 "status": "init",
+                                 "built": None,
+                                 "committed": get_commit_timestamp(ref.commit)}
 
     # Prune nonexisting builds
     if "prune" in config and config["prune"]:
@@ -409,7 +472,7 @@ def write_state(state):
     '''
     Writes the state of the brnaches and their commits into the JSON state file
     '''
-    with open(STATEFILE, 'w', encoding="utf-8") as file:
+    with open(config["statefile"], 'w', encoding="utf-8") as file:
         json.dump(state, file)
 
 def read_state():
@@ -417,7 +480,7 @@ def read_state():
     Read the current state of bes and commits from file
     '''
     try:
-        with open(STATEFILE, 'r', encoding="utf-8") as file:
+        with open(config["statefile"], 'r', encoding="utf-8") as file:
             return json.load(file)
     except FileNotFoundError:
         return {}

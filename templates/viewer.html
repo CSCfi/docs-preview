@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@cscfi/csc-ui@3.0.14/dist/styles/css/theme.css">
+  <title>Docs CSC Preview</title>
+  <style>
+    body:has(c-main:not(.hydrated)) {
+      opacity: 0.0;
+    }
+
+    c-list-item-title {
+      font-family: monospace;
+      font-size: large;
+      font-weight: bold;
+    }
+
+    #branch-previewer>c-card {
+      height: 95vh;
+    }
+
+    #branch-previewer>c-card>c-card-content {
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <c-main>
+    <c-toolbar>
+      <c-csc-logo></c-csc-logo>
+
+      Docs CSC Preview
+    </c-toolbar>
+
+    <c-side-navigation>
+      <c-side-navigation-item active>Branches</c-side-navigation-item>
+    </c-side-navigation>
+
+    <c-page>
+      <c-card>
+        <c-card-title>Branches</c-card-title>
+
+        <c-card-content>
+          <c-list>
+            {% for branch in branches|sort %}
+            {% set href = ['origin', branch.name]|join('/') %}
+            <c-list-item>
+              <c-button slot="pre" size="small" data-branch-name="{{ branch.name }}">Preview</c-button>
+
+              <c-list-item-title>{{ branch.name }}</c-list-item-title>
+
+              <c-link href="https://github.com/CSCfi/csc-user-guide/commit/{{ branch.head }}">{{ branch.head }}</c-link>
+
+              {%- set timestamp -%}
+              {%- if branch.committed is not none -%}
+              {{ branch.committed.strftime('%d-%b-%Y %H:%M') }}
+              {%- else -%}
+              ??-??-?? ??:??
+              {% endif %}
+              {%- endset -%}
+
+              {%- set props -%}
+              slot="post"
+              {%- if not branch.online -%}
+              type="error"
+              {%- elif not branch.up_to_date -%}
+              type="warning"
+              {%- else -%}
+              type="success"
+              {%- endif %}
+              {%- endset -%}
+
+              <c-status slot="post" type="">{{ timestamp }}</c-status>
+            </c-list-item>
+            {% endfor %}
+          </c-list>
+        </c-card-content>
+      </c-card>
+    </c-page>
+  </c-main>
+
+  <c-modal width="95%" id="branch-previewer">
+    <c-card fullscreen>
+      <c-card-title>Preview</c-card-title>
+
+      <c-card-content id="iframe-container"></c-card-content>
+
+      <c-card-actions justify="end">
+        <c-button id="close-preview">
+          Close
+        </c-button>
+      </c-card-actions>
+    </c-card>
+  </c-modal>
+
+  <script>
+    const getModal = () => {
+      const modal = document.getElementById('branch-previewer')
+      const container = document.getElementById('iframe-container')
+
+      return [modal, container]
+    }
+
+    const createResizeObserver = iframe => {
+      const observer = new ResizeObserver(entries => {
+        Array.from(entries).forEach(entry => {
+          if (entry.borderBoxSize?.length > 0) {
+            const newHeight = entry.borderBoxSize[0].blockSize
+
+            iframe.style.height = `${newHeight}px`
+          }
+        })
+      })
+
+      return observer
+    }
+
+    const createIframe = branch => {
+      const iframe = document.createElement('iframe')
+      const observer = createResizeObserver(iframe)
+
+      iframe.id = 'branch-iframe'
+      iframe.src = `/origin/${branch}/`
+      iframe.loading = 'lazy'
+      iframe.width = '100%'
+
+      return [iframe, observer]
+    }
+
+    const getCloseHandler = (modal, iframe, observer) => {
+      return () => {
+        observer.disconnect()
+        modal.value = false
+
+        if (iframe) {
+          iframe.src = 'data:text/html, '
+          iframe.remove()
+        }
+      }
+    }
+
+    const openPreview = branch => {
+      const [modal, container] = getModal()
+      const [iframe, observer] = createIframe(branch)
+      const closeButton = document.getElementById('close-preview')
+
+      container.appendChild(iframe)
+      closeButton.onclick = getCloseHandler(modal, iframe, observer)
+      observer.observe(container)
+      modal.value = true
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const buttons = Array.from(document.querySelectorAll('c-button[data-branch-name]'))
+      const [modal, _] = getModal()
+
+      buttons.forEach(button => {
+        button.onclick = () => { openPreview(button.dataset.branchName) }
+      })
+    })
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@cscfi/csc-ui@3.0.14/dist/csc-ui/csc-ui.esm.js" type="module"></script>
+</body>
+
+</html>
