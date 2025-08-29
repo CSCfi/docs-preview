@@ -8,6 +8,11 @@ data:
         index index.html;
         autoindex on;
       }
+
+      location = /robots.txt {
+        root /var/www/html;   # folder where robots.txt lives
+      }
+
       #rewrite ^/(.*[^/])$ $scheme://$http_host/$1/ permanent;
       port_in_redirect off;
     }

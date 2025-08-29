@@ -41,6 +41,8 @@ spec:
           name: content-vol
         - mountPath: /opt/bitnami/nginx/conf/server_blocks
           name: nginx-conf
+        - mountPath: /var/www/html/
+          name: robots-txt
       - env:
         - name: BUILDSECRET
           value: {{ .Values.secret }}
@@ -84,4 +86,8 @@ spec:
           defaultMode: 420
           name: nginx-config
         name: nginx-conf
+      - configMap:
+          defaultMode: 420
+          name: robots-txt
+        name: robots-txt
 status: {}
