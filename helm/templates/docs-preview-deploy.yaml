@@ -21,7 +21,7 @@ spec:
         deployment: docs-preview
     spec:
       containers:
-      - image: bitnami/nginx:1.16-centos-7
+      - image: bitnamilegacy/nginx:1.29.1
         imagePullPolicy: IfNotPresent
         name: web-server
         ports:

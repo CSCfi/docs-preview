@@ -133,7 +133,7 @@ items:
           configMap:
             name: nginx-config
         containers:
-        - image: bitnami/nginx:1.16-centos-7
+        - image: bitnamilegacy/nginx:1.29.1
           name: web-server
           ports: 
           - containerPort: 8080
@@ -221,7 +221,7 @@ items:
           configMap:
             name: nginx-config
         containers:
-        - image: bitnami/nginx:1.16-centos-7
+        - image: bitnamilegacy/nginx:1.29.1
           name: web-server
           ports: 
           - containerPort: 8080
