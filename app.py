@@ -90,7 +90,6 @@ except KeyError:
     CONFIG_FILE = None
 
 # Default configuration
-
 config = {
     "workPath": WORK_PATH,
     "remoteUrl": REMOTE_URL,
@@ -158,6 +157,10 @@ def init_repo(init_path, remote_url):
     mkdirp(init_path)
 
     repo = git.Repo.init(init_path)
+
+    # Let Git know that 'init_path' is safe
+    with repo.config_writer(config_level="global") as cw:
+        cw.set_value("safe", "directory", init_path)
 
     try:
         origin = repo.remote('origin')
