@@ -22,7 +22,7 @@ from git.exc import GitCommandError
 DEFAULT_STATE_FILE='/tmp/build_state.json'
 DEFAULT_WORK_PATH = "work"
 DEFAULT_BUILD_ROOT = "/tmp/preview-bot/builds"
-DEFAULT_BASE_CONFIG = "mkdocs.yml"
+DEFAULT_BASE_CONFIG = "properdocs.yml"
 DEFAULT_REMOTE_URL = "https://github.com/CSCfi/csc-user-guide"
 DEFAULT_SITE_URL = "https://csc-guide-preview.2.rahtiapp.fi/"
 DEFAULT_SECRET = "changeme" # we are using secret but we should be utilizing whitelists
@@ -143,10 +143,10 @@ def get_scripts(basepath):
 def get_build_cmd(work_dir, build_dir, subpath, base_url=SITE_URL, base_config=BASE_CONFIG):
     """Returns a shell command for building a preview of a branch in work_dir into build_dir with subpath appended to site_url.
     """
-    mkdocs_config = f"{{INHERIT: {base_config}, site_url: {urljoin(base_url, subpath)}, site_dir: {build_dir}}}"
-    mkdocs_cmd = f"echo \"'\"{mkdocs_config}\"'\" | mkdocs build --config-file -"
+    properdocs_config = f"{{INHERIT: {base_config}, site_url: {urljoin(base_url, subpath)}, site_dir: {build_dir}}}"
+    properdocs_cmd = f"echo \"'\"{properdocs_config}\"'\" | properdocs build --config-file -"
 
-    return f"sh -c 'cd {work_dir} && {mkdocs_cmd} 2>&1'"
+    return f"sh -c 'cd {work_dir} && {properdocs_cmd} 2>&1'"
 
 def init_repo(init_path, remote_url):
     """
