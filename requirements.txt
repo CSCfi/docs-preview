@@ -7,7 +7,7 @@ blinker==1.9.0
 # Packages for building the static pages
 babel==2.18.0
 backrefs==8.1
-certifi==2026.10.18
+certifi==2026.10.19
 charset-normalizer==3.5.2
 click==8.5.0
 colorama==0.4.6
