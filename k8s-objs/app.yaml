@@ -41,7 +41,7 @@ items:
       sourceStrategy:
         from:
           kind: ImageStreamTag
-          name: python:3.6
+          name: 'python:3.12-ubi9'
           namespace: openshift
       type: Source
     triggers:
@@ -83,7 +83,7 @@ items:
       sourceStrategy:
         from:
           kind: ImageStreamTag
-          name: python:3.6
+          name: 'python:3.12-ubi9'
           namespace: openshift
       type: Source
     triggers:
@@ -133,7 +133,7 @@ items:
           configMap:
             name: nginx-config
         containers:
-        - image: bitnami/nginx:1.16-centos-7
+        - image: bitnamilegacy/nginx:1.29.1
           name: web-server
           ports: 
           - containerPort: 8080
@@ -221,7 +221,7 @@ items:
           configMap:
             name: nginx-config
         containers:
-        - image: bitnami/nginx:1.16-centos-7
+        - image: bitnamilegacy/nginx:1.29.1
           name: web-server
           ports: 
           - containerPort: 8080
